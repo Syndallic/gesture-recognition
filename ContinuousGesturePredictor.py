@@ -67,7 +67,7 @@ def record_training_image(new_class, num_recorded_frames, image):
 def get_predicted_class(model, image):
     prediction = model.predict([np.expand_dims(image, 2)])
     # return most confident prediction, and confidence level
-    return np.argmax(prediction), np.amax(prediction) * 100
+    return np.argmax(prediction), np.amax(prediction)
 
 
 def show_statistics(predicted_class, confidence):
@@ -167,17 +167,14 @@ def main():
             if num_calibration_frames == 0:
                 print("Calibrating...")
             bg = average_background(bg, gray_image, a_weight)
-            if num_calibration_frames == 59:
+            num_calibration_frames += 1
+            if num_calibration_frames == 60:
                 print("Calibrated.")
         else:
             hand = segment(bg, gray_image)
 
             # check whether hand region is found
-            if hand is None:
-                # if no hand, update running average to accommodate long term lighting changes
-                # should make a button for this instead
-                bg = average_background(bg, gray_image, a_weight / 2)
-            else:
+            if hand is not None:
                 # if yes, unpack the thresholded image and segmented region
                 thresholded, segmented = hand
 
@@ -190,6 +187,7 @@ def main():
                     show_statistics(predicted_class, confidence)
 
                 elif start_recording:
+                    # create folder structure for new class
                     if num_recorded_frames == 0:
                         new_class = str(input("Please enter new class name:"))
                         os.makedirs('dataset/{}/train'.format(new_class))
@@ -202,8 +200,6 @@ def main():
                     if done:
                         break
 
-        num_calibration_frames += 1
-
         # draw the segmented hand
         cv2.rectangle(clone, (left, top), (right, bottom), (0, 255, 0), 2)
 
@@ -214,10 +210,19 @@ def main():
         keypress = cv2.waitKey(1) & 0xFF
         if keypress == ord("q"):
             break
+
         elif keypress == ord("p"):
             start_predicting = True
+            show_statistics("No hand", "")
+
         elif keypress == ord("r"):
             start_recording = True
+
+        elif keypress == ord("c"):
+            num_calibration_frames = 0
+            start_predicting = False
+            start_recording = False
+            cv2.destroyWindow("Statistics")
 
     camera.release()
     cv2.destroyAllWindows()
