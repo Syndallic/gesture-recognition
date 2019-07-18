@@ -1,21 +1,13 @@
+import os
+
+import cv2
+import imutils
+import numpy as np
 import tensorflow as tf
 import tflearn
 from tflearn.layers.conv import conv_2d, max_pool_2d
 from tflearn.layers.core import input_data, dropout, fully_connected
 from tflearn.layers.estimator import regression
-import numpy as np
-from PIL import Image
-import cv2
-import imutils
-
-
-def resize_image(image_name):
-    basewidth = 100
-    img = Image.open(image_name)
-    wpercent = (basewidth / float(img.size[0]))
-    hsize = int((float(img.size[1]) * float(wpercent)))
-    img = img.resize((basewidth, hsize), Image.ANTIALIAS)
-    img.save(image_name)
 
 
 def average_background(bg, image, a_weight):
@@ -27,7 +19,6 @@ def average_background(bg, image, a_weight):
     :param a_weight: The accumulation weight - how much the new image affects the running average
     :return: The updated bg
     """
-    # initialize the background
     if bg is None:
         bg = image.copy().astype("float")
         return bg
@@ -56,18 +47,34 @@ def segment(bg, image, threshold=25):
         return thresholded, segmented
 
 
-def get_predicted_class(image):
-    # image = cv2.imread('Temp.png')
-    gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    prediction = model.predict([np.expand_dims(gray_image, 2)])
-    return np.argmax(prediction), (np.amax(prediction) / (prediction[0][0] + prediction[0][1] + prediction[0][2]))
+def record_training_image(new_class, num_recorded_frames, image):
+    """Saves image to disk and returns whether recording is finished or not"""
+    if num_recorded_frames >= 1100:
+        print("Recording complete")
+        return True
+
+    subfolder = "train/" if num_recorded_frames < 1000 else "test/"
+    path = "dataset/{}/{}/{}.png".format(new_class, subfolder, str(num_recorded_frames))
+
+    if cv2.imwrite(path, image):
+        print("Saved image #{} out of {}".format(str(num_recorded_frames), 1100))
+    else:
+        print("Error saving image #{}".format(str(num_recorded_frames)))
+
+    return False
+
+
+def get_predicted_class(model, image):
+    prediction = model.predict([np.expand_dims(image, 2)])
+    # return most confident prediction, and confidence level
+    return np.argmax(prediction), np.amax(prediction) * 100
 
 
 def show_statistics(predicted_class, confidence):
     text_image = np.zeros((300, 512, 3), np.uint8)
     class_name = str(predicted_class)
 
-    cv2.putText(text_image, "Pedicted Class : " + class_name,
+    cv2.putText(text_image, "Predicted Class : " + class_name,
                 (30, 30),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 1,
@@ -128,24 +135,19 @@ def main():
     bg = None
     a_weight = 0.5
 
-    # get the reference to the webcam
     camera = cv2.VideoCapture(0 + cv2.CAP_DSHOW)
+    num_calibration_frames = 0
+    num_recorded_frames = 0
+    start_predicting = False
+    start_recording = False
+    new_class = None
+    model = load_saved_model()
 
     # region of interest (ROI) coordinates
     top, right, bottom, left = 10, 350, 225, 590
 
-    # initialize num of frames
-    num_frames = 0
-    start_recording = False
-
-    print("Calibrating...")
-
-    # keep looping, until interrupted
     while True:
-        # get the current frame
         grabbed, frame = camera.read()
-
-        # resize the frame
         frame = imutils.resize(frame, width=700)
 
         # flip the frame so that it is not the mirror view
@@ -157,42 +159,53 @@ def main():
         # get the ROI
         roi = frame[top:bottom, right:left]
 
-        # convert the roi to grayscale and blur it
-        gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-        gray = cv2.GaussianBlur(gray, (7, 7), 0)
+        # convert the roi to gray-scale and blur it
+        gray_image = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+        gray_image = cv2.GaussianBlur(gray_image, (7, 7), 0)
 
-        # to get the background, keep looking till a threshold is reached
-        # so that our running average model gets calibrated
-        if num_frames < 60:
-            bg = average_background(bg, gray, a_weight)
-            if num_frames == 59:
-                print("Calibrated...")
+        if num_calibration_frames < 60:
+            if num_calibration_frames == 0:
+                print("Calibrating...")
+            bg = average_background(bg, gray_image, a_weight)
+            if num_calibration_frames == 59:
+                print("Calibrated.")
         else:
-            # segment the hand region
-            hand = segment(bg, gray)
+            hand = segment(bg, gray_image)
 
-            # check whether hand region is segmented
+            # check whether hand region is found
             if hand is None:
                 # if no hand, update running average to accommodate long term lighting changes
-                bg = average_background(bg, gray, a_weight / 2)
+                # should make a button for this instead
+                bg = average_background(bg, gray_image, a_weight / 2)
             else:
                 # if yes, unpack the thresholded image and segmented region
                 thresholded, segmented = hand
 
                 # draw the segmented region and display the frame
                 cv2.drawContours(clone, [segmented + (right, top)], -1, (0, 0, 255))
-                if start_recording:
-                    # cv2.imwrite('Temp.png', thresholded)
-                    # resizeImage('Temp.png')
-                    predicted_class, confidence = get_predicted_class(thresholded)
-                    show_statistics(predicted_class, confidence)
                 cv2.imshow("Thesholded", thresholded)
+
+                if start_predicting:
+                    predicted_class, confidence = get_predicted_class(model, thresholded)
+                    show_statistics(predicted_class, confidence)
+
+                elif start_recording:
+                    if num_recorded_frames == 0:
+                        new_class = str(input("Please enter new class name:"))
+                        os.makedirs('dataset/{}/train'.format(new_class))
+                        os.makedirs('dataset/{}/test'.format(new_class))
+                        start_recording = False
+                        print("Press 'r' again to start recording")
+
+                    done = record_training_image(new_class, num_recorded_frames, thresholded)
+                    num_recorded_frames += 1
+                    if done:
+                        break
+
+        num_calibration_frames += 1
 
         # draw the segmented hand
         cv2.rectangle(clone, (left, top), (right, bottom), (0, 255, 0), 2)
-
-        # increment the number of frames
-        num_frames += 1
 
         # display the frame with segmented hand
         cv2.imshow("Video Feed", clone)
@@ -201,8 +214,13 @@ def main():
         keypress = cv2.waitKey(1) & 0xFF
         if keypress == ord("q"):
             break
-        if keypress == ord("s"):
+        elif keypress == ord("p"):
+            start_predicting = True
+        elif keypress == ord("r"):
             start_recording = True
+
+    camera.release()
+    cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":
