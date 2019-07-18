@@ -38,10 +38,10 @@ The main modifications so far are:
 
 * Choose between predicting or recording. 
 
-#####Prediction
+####Prediction
 * To begin real-time prediction, press **"s"**. 
 
-#####Recording
+####Recording
 * If you want to create a custom dataset instead, press **"r"**.
 
 * Enter the name of the new class as prompted by the console. 
