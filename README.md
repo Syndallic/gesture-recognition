@@ -42,10 +42,10 @@ The main modifications so far are:
 
 * At any time, press **"c"** to re-calibrate the background elimination if the background lighting changes
 
-####Prediction
+##### Prediction
 * To begin real-time prediction, press **"s"**. 
 
-####Recording
+##### Recording
 * If you want to create a custom dataset instead, press **"r"**.
 
 * Enter the name of the new class as prompted by the console. 
