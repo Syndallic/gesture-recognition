@@ -1,2 +1,5 @@
 .ipynb_*
 Temp.png
+.idea/*
+venv/*
+__pycache__/*

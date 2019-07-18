@@ -1,9 +1,5 @@
-# organize imports
-import os
-
 import cv2
 import imutils
-import numpy as np
 
 # global variables
 bg = None
@@ -49,8 +45,6 @@ def segment(image, threshold=25):
 
 
 def main():
-    dataset_folder = 'Dataset'
-
     # initialize weight for running average
     aWeight = 0.5
 
@@ -104,7 +98,7 @@ def main():
                     if start_recording:
                         subfolder = "train/" if image_num < 1000 else "test/"
                         # Mention the directory in which you wanna store the images followed by the image name
-                        cv2.imwrite("Dataset/5/" + subfolder + str(image_num) + '.png', thresholded)
+                        cv2.imwrite("dataset/5/" + subfolder + str(image_num) + '.png', thresholded)
                         print("Saved image #" + str(image_num))
                         image_num += 1
                     cv2.imshow("Thesholded", thresholded)
