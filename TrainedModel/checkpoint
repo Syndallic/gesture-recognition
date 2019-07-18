@@ -1,0 +1,2 @@
+model_checkpoint_path: "D:\\Documents\\Programming\\Python\\Workspace\\Magic Mirror\\CNN Gesture Recognition\\TrainedModel\\GestureRecogModel.tfl"
+all_model_checkpoint_paths: "D:\\Documents\\Programming\\Python\\Workspace\\Magic Mirror\\CNN Gesture Recognition\\TrainedModel\\GestureRecogModel.tfl"
